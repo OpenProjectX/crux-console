@@ -201,6 +201,56 @@ java -jar target/crux-console.jar --embed-crux true
 and `lein build-ebs` additionally packs an AWS Elastic Beanstalk bundle
 (see `dev/build-ebs.sh`).
 
+## Docker
+
+Prebuilt images are published to GitHub Container Registry by the
+[Build and Release Docker Image](.github/workflows/docker.yml) workflow on
+every push to `master` (tagged `latest`, `master`, `sha-<commit>`) and on
+`v*` git tags (tagged semver, e.g. `1.2.3` and `1.2`).
+
+### Run
+
+```sh
+docker run -p 5000:5000 -p 8080:8080 \
+  -v crux-data:/app/data \
+  ghcr.io/openprojectx/crux-console:latest
+```
+
+Open <http://localhost:5000/console>. Notes:
+
+- The default command runs with an **embedded Crux node**
+  (`--embed-crux true --crux-node-url-base '"localhost:8080"'`).
+- **Publish both ports**: 5000 serves the console, 8080 is the Crux HTTP API
+  that the *browser* calls directly. If you map 8080 to a different host
+  port, override `--crux-node-url-base` to match what the browser can reach,
+  e.g. `docker run ... ghcr.io/openprojectx/crux-console:latest
+  --embed-crux true --crux-node-url-base '"localhost:9090"'`
+  (arguments after the image name replace the default command and are passed
+  to the console server).
+- The embedded node persists RocksDB data in the `/app/data` volume — reuse
+  the same named volume to keep your data across container restarts.
+- To use an external Crux node instead, drop `--embed-crux` and point
+  `--crux-node-url-base` at the node (must be reachable from the browser and
+  CORS-enabled).
+
+### Build locally
+
+```sh
+docker build -t crux-console .
+```
+
+The `Dockerfile` is multi-stage: a `clojure:temurin-17-lein` stage compiles
+the frontend (`shadow-cljs release app`) and packs `crux-console.jar`
+(`lein with-profile base:crux-jars uberjar`); the runtime image is a plain
+JRE with the jar.
+
+### Release a version
+
+```sh
+git tag v1.0.0
+git push OpenProjectX v1.0.0   # CI publishes ghcr.io/openprojectx/crux-console:1.0.0
+```
+
 ## Code style / architecture notes
 
 - Frontend state management is re-frame: events and subscriptions are under
