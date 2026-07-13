@@ -9,6 +9,7 @@
             [crux-ui-server.pages :as pages]
             [clojure.java.io :as io]
             [clojure.string :as s]
+            [clojure.edn :as edn]
             [clojure.pprint :as pprint])
   (:gen-class)
   (:import (java.io Closeable)))
@@ -27,6 +28,7 @@
       "/output" ::console
       ["/output/" :rd/out-tab] ::console
       ["/" :rd/tab] ::console}]
+    ["/api/query" ::api-query]
     ["/query-perf" ::query-perf]
     ["/service-worker-for-console.js" ::service-worker-for-console]
     ["/manifest.json" ::web-app-manifest]
@@ -54,6 +56,29 @@
   {:status 200
    :headers {"content-type" "text/html"}
    :body (pages/gen-console-page req @config)})
+
+(defmethod handler ::api-query [req]
+  (try
+    (let [body-edn  (edn/read-string (slurp (:body req)))
+          ; accept both the bare query map and the {:query {...}} wrapping
+          ; that the Crux node's own /query endpoint expects
+          query-edn (if (and (map? body-edn) (contains? body-edn :query))
+                      (:query body-edn)
+                      body-edn)
+          crux-url  (str "http://localhost:" (:console/crux-http-port @config) "/query")
+          resp      @(http/post crux-url
+                                {:headers {"content-type" "application/edn"}
+                                 :body    (pr-str {:query query-edn})})
+          results   (edn/read-string {:default tagged-literal}
+                                     (slurp (:body resp)))]
+      {:status  200
+       :headers {"content-type" "application/edn"}
+       :body    (pr-str (apply list results))})
+    (catch Exception e
+      (log/warn "api-query failed:" (.getMessage e))
+      {:status  400
+       :headers {"content-type" "application/edn"}
+       :body    (pr-str {:error (.getMessage e)})})))
 
 (defmethod handler ::service-worker-for-console [req]
   {:status 200

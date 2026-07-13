@@ -1,0 +1,23 @@
+POST http://localhost:8080/query
+Content-Type: application/edn
+
+{:query
+{:find [market-title ticker-id price]
+ :where
+ [[ticker-id :ticker/price price]
+
+  [ticker-id :ticker/market m]
+  [m :se/title market-title]]
+ :order-by [[market-title :asc]]
+ :limit 10
+ :offset 1}
+ }
+
+###
+
+POST http://localhost:5000/console/api/query
+Content-Type: application/edn
+
+{:query {:find [e p] :where [[e :ticker/price p]] :order-by [[p :asc]] :limit 3}}
+
+###
